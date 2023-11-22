@@ -1,32 +1,61 @@
-% 采用RVRNN结构，神经元数量为15个，激活函数为tansig函数，输出层激活函数为pureln函数 
- clc;
- clear;
+clc
+clear;
+addpath('D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\data');
+addpath('D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\fun_lab');
+
+%% Load Date 
+Center_F=2.5*1e6;
+Channel_F=[-5.3 0 5.3]*1e6;
+Bandwidth=5e6;
+Samplerate=30.72e6;                                                         %采样频率设置为30.72MHz
+
+j = sqrt(-1);
+I1 = importdata('LTE_5MHz_In_I_30_72r0_PAPR_9r0_0_5ms.txt');                %加载同相输入信号I1
+Q1 = importdata('LTE_5MHz_In_Q_30_72r0_PAPR_9r0_0_5ms.txt');                %加载正交输入信号Q1
+IQ_sample=I1+j*Q1;                                                          %得到正交调制信号IQ_Sample=I1+j*Q1
+N_sample=length(IQ_sample);                                                 %获取已调信号的长度
+IQ_start=IQ_sample(1:N_sample);                                             %将已调信号注入到变量IQ_start中
+
+t1 = load('DPD_Mea_Indirect_Learning_Phase_cal_20.mat','X1');                 %加载文件.mat 中的变量X1；并将其加载到结构体(struct)数组t1当中
+Xt1 = t1.X1;                                                                  %调用结构体数组（单元）ti中的数据X1
+Pin_Xt = fun_Power_cal(Xt1)-2;                                               %Xt的功率是X1的平均功率！！！！！！！！
+
+P_IQload = fun_Power_cal(IQ_start);                                          %计算已调信号IQ_start的功率（dBm）
+X1 = fun_Power_scale(Pin_Xt,P_IQload,IQ_start);                               %将IQ_start放缩到abs(Xt1)/abs(IQ_start)倍
+sample_num = length(X1);
+
+%% Target PA
+load("D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\data\Wiener_Model_30dBm.mat",'M', 'A', 'Plow', 'Pinm_dB', 'Num_section', 'Gstatic', 'PX');
+Y1=fun_Wiener_Model_LUT_cal(X1, M, A, Plow, Pinm_dB, Num_section, Gstatic, PX);
+Pin = fun_Power_cal(X1);Pout = fun_Power_cal(Y1);
+G = Pout-Pin;
+
+input_I = real(X1);
+input_Q = imag(X1);
+target_I = real(Y1);
+target_Q = imag(Y1);
+sample_num = length(input_Q);
+input = zeros(2,sample_num);
+input(1,:) = input_I';
+input(2,:) = input_Q';
+target = zeros(2,sample_num);
+target(1,:) = target_I';
+target(2,:) = target_Q';
+% 神经网络的输入与输出都为行向量
  
- % 加载训练数据
- data = load("PA_dataset.mat");
- input = data.input;
- target = data.output;
+% 创建神经网络
+hidensize = 15;
+trainFcn = 'trainlm';      %采用LM算法作为反向传播算法
+net = feedforwardnet(hidensize,trainFcn);  %采用feedforwardnet函数创建一个2层前向神经网络;
+net = configure(net,input,target);     %传输训练数据，每一列应代表着不同的样本
+%view(net);
  
- % Recursion——递归结构
- Re = fun_TDL(target(1,:),target(2,:),1);
- input_Re = zeros(10,length(input(1,:)));
- input_Re(1:8,:) = input;
- input_Re(9,:) = Re(1,:);
- input_Re(10,:) = Re(3,:);
- 
- % 创建神经网络
- hidensize = 15;
- trainFcn = 'trainlm';      %采用LM算法作为反向传播算法
- net = feedforwardnet(hidensize,trainFcn);  %采用feedforwardnet函数创建一个2层前向神经网络;
- net = configure(net,input_Re,target);     %传输训练数据，每一列应代表着不同的样本
- view(net);
- 
- % 训练网络
- net = train(net,input_Re,target);
- 
- %% 数据分析
- output = net(input_Re);
- errors = gsubtract(target,output);
+% 训练网络
+net = train(net,input,target);
+
+output = net(input);
+
+errors = gsubtract(target,output);
  performance = perform(net,target,output)       %performance = E = 1/2N*sum((target-output)^2)
  
  %% 分析
@@ -35,21 +64,6 @@
  Y_out = output(1,:)+j*output(2,:);
  NMSE = fun_nmse(Y_Target,Y_out);
  fprintf("NMSE = %f (dB)\n\n",NMSE);
- IQ_sample=input(1,:)+j*input(5,:);                                          %得到正交调制信号IQ_Sample=I1+j*Q1
- N_sample=length(IQ_sample);                                                 %获取已调信号的长度
- IQ_start=IQ_sample(1:N_sample);                                             %将已调信号注入到变量IQ_start中
-
- path('D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\fun_lab',path);
- 
- t1=load('DPD_Mea_Indirect_Learning_Phase_cal_20.mat','X1');                 %加载文件.mat 中的变量X1；并将其加载到结构体(struct)数组t1当中
- Xt1=t1.X1;                                                                  %调用结构体数组（单元）ti中的数据X1
- Pin_Xt= fun_Power_cal(Xt1)-2;                                                 %Xt的功率是X1的平均功率！！！！！！！！
-
- P_IQload= fun_Power_cal(IQ_start);                                          %计算已调信号IQ_start的功率（dBm）
- X1 = fun_Power_scale(Pin_Xt,P_IQload,IQ_start');                               %将IQ_start放缩到abs(Xt1)/abs(IQ_start)倍
- X1 = X1';
- 
- 
  
  % 绘制Level of output v.s. input
  figure(1);
@@ -68,8 +82,8 @@
  Samplerate=30.72e6;
  % 非线性分析
 %  NMSE = fun_NMSE_cal(Y_Target,Y_out);disp(NMSE);    %计算归一化均方误差
- [PindB, AM(:,1), PM(:,1)]=fun_AM_PM_cal(X1, Y_Target);
- [~, AM(:,2), PM(:,2)]=fun_AM_PM_cal(X1, Y_out);
+ [PindB, AM(:,1), PM(:,1)]=fun_AM_PM_cal(X1, Y_Target');
+ [~, AM(:,2), PM(:,2)]=fun_AM_PM_cal(X1, Y_out');
  % 绘制AM/AM,AM/PM特性
  figure(2);
  plot(PindB,AM(:,1),'b.');

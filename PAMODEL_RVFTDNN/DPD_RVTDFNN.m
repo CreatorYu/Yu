@@ -1,7 +1,7 @@
 clc
 clear;
-addpath('E:\matlab\bin\CODE\mycode\data');
-addpath('E:\matlab\bin\CODE\mycode\fun_lab');
+addpath('D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\data');
+addpath('D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\fun_lab');
 
 %% Load Date 1
 Center_F=2.5*1e6;
@@ -25,7 +25,7 @@ X1 = fun_Power_scale(Pin_Xt,P_IQload,IQ_start);                               %�
 sample_num = length(X1);
 
 %% Target PA
-load("E:\matlab\bin\CODE\mycode\data\Wiener_Model_30dBm.mat",'M', 'A', 'Plow', 'Pinm_dB', 'Num_section', 'Gstatic', 'PX');
+load("D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\data\Wiener_Model_30dBm.mat",'M', 'A', 'Plow', 'Pinm_dB', 'Num_section', 'Gstatic', 'PX');
 Y1=fun_Wiener_Model_LUT_cal(X1, M, A, Plow, Pinm_dB, Num_section, Gstatic, PX);
 Pin = fun_Power_cal(X1);Pout = fun_Power_cal(Y1);
 G = Pout-Pin;
@@ -117,8 +117,8 @@ grid on
 hold off
 
 
-addpath("E:\matlab\bin\CODE\mycode\fun_lab");
-addpath("E:\matlab\bin\CODE\DPD_Research");
+addpath("D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\mycode\fun_lab");
+addpath("D:\MATLAB2020\bin\bin\MATLAB_CODE\CODE\DPD_Research");
 
 
 fun_myplot_spectrum(X1, Y, 4, Samplerate,Center_F);                         %展示DPD运行过程中PSD的变换
